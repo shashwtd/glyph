@@ -6,7 +6,7 @@ import SpotifyWidget from "@/components/SpotifyWidget";
 export default function Home() {
     return (
         <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: 'url(/bg-blue.jpg)' }} />
+            <div className="absolute inset-0 bg-cover bg-center bg-no-repeat"/>
             <div className="absolute inset-0 noise-texture" />
 
             <TopBar />

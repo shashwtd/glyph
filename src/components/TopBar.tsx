@@ -2,21 +2,26 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Settings, Link2, LogOut, Pencil } from "lucide-react";
+import { User, Settings, Link2, LogOut, Pencil, Zap } from "lucide-react";
+import useBatteryStatus, { BatteryStatus } from "@/hooks/useBatteryStatus";
 
 const MENU_ITEMS = [
     { name: "Profile", icon: User },
     { name: "Settings", icon: Settings },
-    { name: "Connections", icon: Link2 }
+    { name: "Connections", icon: Link2 },
 ];
 
 export default function TopBar() {
     const [profileOpen, setProfileOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
+    const batteryStatus: BatteryStatus | null = useBatteryStatus();
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+            if (
+                profileRef.current &&
+                !profileRef.current.contains(event.target as Node)
+            ) {
                 setProfileOpen(false);
             }
         };
@@ -35,10 +40,13 @@ export default function TopBar() {
             <div className="flex items-center gap-2 sm:gap-4">
                 <div className="font-semibold">Glyph</div>
             </div>
-            
+
             <div className="flex items-center justify-center gap-2 sm:gap-4">
-                <BatteryIndicator percentage={24} />
-                <ProfileMenu 
+                <BatteryIndicator
+                    percentage={batteryStatus?.level || 0}
+                    isCharging={batteryStatus?.charging || false}
+                />
+                <ProfileMenu
                     profileOpen={profileOpen}
                     setProfileOpen={setProfileOpen}
                     profileRef={profileRef}
@@ -48,19 +56,39 @@ export default function TopBar() {
     );
 }
 
-function BatteryIndicator({ percentage }: { percentage: number }) {
+function BatteryIndicator({
+    percentage,
+    isCharging,
+}: {
+    percentage: number;
+    isCharging: boolean;
+}) {
+    const clampedPercentage = Math.min(Math.max(percentage, 0), 100);
+
     return (
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 relative">
             <div className="relative flex items-center">
-                <div className="w-5 sm:w-6 h-2.5 sm:h-3 border border-white/80 rounded-sm relative overflow-hidden">
-                    <div 
-                        className="absolute inset-0.5 bg-white/60 rounded-[1px]" 
-                        style={{ width: `${percentage}%` }}
+                <div className="w-5 sm:w-6 h-3 sm:h-3.5 border border-white/80 rounded-sm relative overflow-hidden">
+                    {isCharging && (
+                        <Zap
+                            size={8}
+                            className="text-white opacity-70 absolute z-10 -translate-x-1/2 left-1/2 top-1/2 -translate-y-1/2 mix-blend-difference"
+                            fill="currentColor"
+                        />
+                    )}
+                    <div
+                        className="absolute top-0.5 left-0.5 bottom-0.5 right-0.5 bg-neutral-600 rounded-[1px]"
+                        style={{
+                            width: `calc(${clampedPercentage}% - 4px)`,
+                            maxWidth: "calc(100% - 4px)",
+                        }}
                     />
                 </div>
-                <div className="w-0.5 h-1 sm:h-1.5 bg-white/80 rounded-r-sm -ml-px" />
+                <div className="w-[1.5px] h-1.5 bg-white/60 ml-px rounded-r-sm relative" />
             </div>
-            <span className="text-[10px] sm:text-sm">{percentage}%</span>
+            <span className="text-[10px] sm:text-sm">
+                {Math.round(clampedPercentage)}%
+            </span>
         </div>
     );
 }
@@ -71,30 +99,34 @@ interface ProfileMenuProps {
     profileRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ProfileMenu({ profileOpen, setProfileOpen, profileRef }: ProfileMenuProps) {
+function ProfileMenu({
+    profileOpen,
+    setProfileOpen,
+    profileRef,
+}: ProfileMenuProps) {
     return (
         <div className="relative hidden lg:block ml-2" ref={profileRef}>
             <motion.button
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 border border-white/30 cursor-pointer"
-                whileHover={{ 
+                whileHover={{
                     scale: 1.15,
-                    borderColor: "rgba(255, 255, 255, 0.6)"
+                    borderColor: "rgba(255, 255, 255, 0.6)",
                 }}
                 whileTap={{ scale: 0.95 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
             />
-            
+
             <AnimatePresence>
                 {profileOpen && (
                     <motion.div
                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{ 
+                        transition={{
                             type: "spring",
                             stiffness: 400,
-                            damping: 25
+                            damping: 25,
                         }}
                         className="absolute right-0 top-10 min-w-[240px] max-w-[280px] bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 shadow-lg overflow-hidden origin-top-right"
                     >
@@ -109,7 +141,7 @@ function ProfileMenu({ profileOpen, setProfileOpen, profileRef }: ProfileMenuPro
 
 function ProfileHeader() {
     return (
-        <motion.div 
+        <motion.div
             className="p-4 border-b border-white/10"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -117,7 +149,7 @@ function ProfileHeader() {
         >
             <div className="flex items-center gap-3">
                 <div className="relative group cursor-pointer">
-                    <motion.div 
+                    <motion.div
                         className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex-shrink-0"
                         whileHover={{ scale: 1.05 }}
                         transition={{ duration: 0.2 }}
@@ -127,12 +159,20 @@ function ProfileHeader() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
-                        <Pencil size={14} className="text-white" strokeWidth={2.5} />
+                        <Pencil
+                            size={14}
+                            className="text-white"
+                            strokeWidth={2.5}
+                        />
                     </motion.button>
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">User</div>
-                    <div className="text-xs text-white/60 truncate">shashwat55902@gmail.com</div>
+                    <div className="text-sm font-semibold text-white truncate">
+                        User
+                    </div>
+                    <div className="text-xs text-white/60 truncate">
+                        shashwat55902@gmail.com
+                    </div>
                 </div>
             </div>
         </motion.div>
@@ -149,18 +189,18 @@ function ProfileMenuItems() {
                         key={item.name}
                         className="w-full text-left px-3 py-2.5 text-sm text-white/80 rounded-lg flex items-center gap-2.5 cursor-pointer"
                         initial={{ opacity: 0, x: -10 }}
-                        animate={{ 
-                            opacity: 1, 
+                        animate={{
+                            opacity: 1,
                             x: 0,
-                            transition: { 
+                            transition: {
                                 delay: 0.12 + i * 0.04,
-                                duration: 0.2
-                            }
+                                duration: 0.2,
+                            },
                         }}
-                        whileHover={{ 
+                        whileHover={{
                             backgroundColor: "rgba(255, 255, 255, 0.12)",
                             x: 3,
-                            transition: { duration: 0 }
+                            transition: { duration: 0 },
                         }}
                         whileTap={{ scale: 0.97 }}
                     >
@@ -169,30 +209,30 @@ function ProfileMenuItems() {
                     </motion.button>
                 );
             })}
-            
-            <motion.div 
+
+            <motion.div
                 className="h-px bg-white/10 my-2 mx-2"
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ delay: 0.24, duration: 0.2 }}
             />
-            
+
             <motion.button
                 className="w-full text-left px-3 py-2.5 text-sm text-red-300/80 rounded-lg flex items-center gap-2.5 cursor-pointer"
                 initial={{ opacity: 0, x: -10 }}
-                animate={{ 
-                    opacity: 1, 
+                animate={{
+                    opacity: 1,
                     x: 0,
-                    transition: { 
+                    transition: {
                         delay: 0.28,
-                        duration: 0.2
-                    }
+                        duration: 0.2,
+                    },
                 }}
-                whileHover={{ 
+                whileHover={{
                     backgroundColor: "rgba(255, 255, 255, 0.12)",
                     x: 3,
                     color: "rgba(252, 165, 165, 1)",
-                    transition: { duration: 0 }
+                    transition: { duration: 0 },
                 }}
                 whileTap={{ scale: 0.97 }}
             >
