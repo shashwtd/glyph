@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Settings, Link2, LogOut, Pencil, Zap } from "lucide-react";
+import {
+    User,
+    Settings,
+    Link2,
+    LogOut,
+    Pencil,
+    Zap,
+    PanelRightClose,
+} from "lucide-react";
 import useBatteryStatus, { BatteryStatus } from "@/hooks/useBatteryStatus";
 
 const MENU_ITEMS = [
@@ -11,7 +19,12 @@ const MENU_ITEMS = [
     { name: "Connections", icon: Link2 },
 ];
 
-export default function TopBar() {
+interface TopBarProps {
+    onMenuClick: () => void;
+    isSidebarOpen: boolean;
+}
+
+export default function TopBar({ onMenuClick, isSidebarOpen }: TopBarProps) {
     const [profileOpen, setProfileOpen] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
     const batteryStatus: BatteryStatus | null = useBatteryStatus();
@@ -36,8 +49,27 @@ export default function TopBar() {
     }, [profileOpen]);
 
     return (
-        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between select-none px-3 sm:px-6 py-2 sm:py-3 font-mono text-white/80 text-xs sm:text-sm">
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between select-none px-3 sm:px-6 py-2 sm:py-3 font-mono text-white/80 text-xs sm:text-sm">
             <div className="flex items-center gap-2 sm:gap-4">
+                <motion.button
+                    className="p-1.5 w-max h-max rounded-lg cursor-pointer"
+                    onClick={onMenuClick}
+                    whileHover={{ 
+                        backgroundColor: "rgba(255, 255, 255, 0.1)",
+                        scale: 1.05 
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <motion.div
+                        animate={{ 
+                            rotate: isSidebarOpen ? 180 : 0,
+                        }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                    >
+                        <PanelRightClose size={20} />
+                    </motion.div>
+                </motion.button>
                 <div className="font-semibold">Glyph</div>
             </div>
 
