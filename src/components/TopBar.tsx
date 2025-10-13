@@ -13,6 +13,7 @@ import {
     ChevronDown,
 } from "lucide-react";
 import useBatteryStatus, { BatteryStatus } from "@/hooks/useBatteryStatus";
+import Link from "next/link";
 
 const MENU_ITEMS = [
     { name: "Profile", icon: User },
@@ -55,15 +56,15 @@ export default function TopBar({ onMenuClick, isSidebarOpen }: TopBarProps) {
                 <motion.button
                     className="p-1.5 w-max h-max rounded-lg cursor-pointer"
                     onClick={onMenuClick}
-                    whileHover={{ 
+                    whileHover={{
                         backgroundColor: "rgba(255, 255, 255, 0.1)",
-                        scale: 1.05 
+                        scale: 1.05,
                     }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.2 }}
                 >
                     <motion.div
-                        animate={{ 
+                        animate={{
                             rotate: isSidebarOpen ? 180 : 0,
                         }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
@@ -71,7 +72,9 @@ export default function TopBar({ onMenuClick, isSidebarOpen }: TopBarProps) {
                         <PanelRightClose size={20} />
                     </motion.div>
                 </motion.button>
-                <div className="font-semibold">Glyph</div>
+                <Link href="/">
+                    <div className="font-semibold">Glyph</div>
+                </Link>
             </div>
 
             <div className="flex items-center justify-center gap-2 sm:gap-4">
@@ -167,7 +170,11 @@ function ProfileMenu({
                     animate={{ rotate: profileOpen ? 180 : 0 }}
                     transition={{ type: "spring", stiffness: 220, damping: 22 }}
                 >
-                    <ChevronDown size={16} className="text-white/80" strokeWidth={2.5} />
+                    <ChevronDown
+                        size={16}
+                        className="text-white/80"
+                        strokeWidth={2.5}
+                    />
                 </motion.div>
             </motion.div>
 

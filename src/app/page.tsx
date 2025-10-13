@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Github } from "lucide-react";
 
 export default function Home() {
     return (
@@ -12,7 +12,7 @@ export default function Home() {
 
             <div className="relative z-10 flex flex-col items-center justify-center gap-8 px-6">
                 <motion.h1
-                    className="font-bold text-white text-[clamp(4rem,15vw,12rem)] leading-[0.85] tracking-[-0.08em]"
+                    className="font-serif text-white/70 text-[clamp(3rem,12vw,8rem)] leading-[0.85] tracking-tight"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
@@ -21,12 +21,12 @@ export default function Home() {
                 </motion.h1>
 
                 <motion.p
-                    className="text-white/60 text-lg sm:text-xl max-w-md text-center font-mono"
+                    className="text-white/60 sm:text-lg max text-center"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
                 >
-                    A collection of powerful tools designed to enhance your workflow
+                    powerful tools designed to enhance your workflow
                 </motion.p>
 
                 <motion.div
@@ -34,20 +34,39 @@ export default function Home() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
                 >
-                    <Link href="/app">
-                        <motion.button
-                            className="px-8 py-4 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 text-white font-mono text-sm flex items-center gap-3 cursor-pointer"
-                            whileHover={{
-                                scale: 1.02,
-                                backgroundColor: "rgba(255, 255, 255, 0.15)",
-                            }}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        >
-                            View App
-                            <ArrowRight size={18} strokeWidth={2} />
-                        </motion.button>
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <Link href="https://github.com/your-repo" target="_blank" rel="noopener noreferrer">
+                            <motion.button
+                                initial="rest"
+                                whileHover="hover"
+                                whileTap={{ scale: 0.98 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                className="px-8 py-4 bg-white/10 hover:bg-white/15 backdrop-blur-xl text-neutral-400 font-mono text-sm flex items-center gap-3 cursor-pointer outline outline-transparent hover:outline-white/20 outline-offset-3 transition-colors"
+                            >
+                                <Github size={18} strokeWidth={2} className="text-neutral-400" />
+                                <span>View GitHub</span>
+                            </motion.button>
+                        </Link>
+                        <Link href="/app">
+                            <motion.button
+                                initial="rest"
+                                whileHover="hover"
+                                whileTap={{ scale: 0.98 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                className="px-8 py-4 bg-white/10 hover:bg-white/15 backdrop-blur-xl text-neutral-400 font-mono text-sm flex items-center gap-3 cursor-pointer outline outline-transparent hover:outline-white/20 outline-offset-3 transition-colors"
+                            >
+                                View App
+                                <motion.span
+                                    // arrow will move right on hover
+                                    variants={{ rest: { x: 0 }, hover: { x: 6 } }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 26 }}
+                                >
+                                    <ArrowRight size={18} strokeWidth={2} />
+                                </motion.span>
+                            </motion.button>
+                        </Link>
+
+                    </div>
                 </motion.div>
             </div>
         </main>
