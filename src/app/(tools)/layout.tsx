@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import TopBar from "@/components/TopBar";
 import Sidebar, { SIDEBAR_WIDTH } from "@/components/Sidebar";
+
+const SIDEBAR_STORAGE_KEY = "glyph-sidebar-open";
 
 export default function ToolsLayout({
     children,
@@ -11,6 +13,23 @@ export default function ToolsLayout({
     children: React.ReactNode;
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+        if (stored !== null) {
+            setIsSidebarOpen(stored === "true");
+        }
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (mounted) {
+            localStorage.setItem(SIDEBAR_STORAGE_KEY, String(isSidebarOpen));
+        }
+    }, [isSidebarOpen, mounted]);
+
+    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
     return (
         <div className="relative min-h-screen">
@@ -20,7 +39,7 @@ export default function ToolsLayout({
             />
 
             <TopBar
-                onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                onMenuClick={toggleSidebar}
                 isSidebarOpen={isSidebarOpen}
             />
 
