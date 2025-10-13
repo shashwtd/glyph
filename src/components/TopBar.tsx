@@ -10,6 +10,7 @@ import {
     Pencil,
     Zap,
     PanelRightClose,
+    ChevronDown,
 } from "lucide-react";
 import useBatteryStatus, { BatteryStatus } from "@/hooks/useBatteryStatus";
 
@@ -136,30 +137,47 @@ function ProfileMenu({
     setProfileOpen,
     profileRef,
 }: ProfileMenuProps) {
+    // Gentle animation settings for better UX
+    const containerHover = { scale: 1.03 };
+    const containerTap = { scale: 0.98 };
+
     return (
         <div className="relative hidden lg:block ml-2" ref={profileRef}>
-            <motion.button
+            <motion.div
+                className="flex items-center gap-2 cursor-pointer"
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 border border-white/30 cursor-pointer"
-                whileHover={{
-                    scale: 1.15,
-                    borderColor: "rgba(255, 255, 255, 0.6)",
-                }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
-            />
+                whileHover={containerHover}
+                whileTap={containerTap}
+                animate={{ scale: profileOpen ? 1.02 : 1 }}
+                transition={{ type: "spring", stiffness: 160, damping: 20 }}
+            >
+                <motion.div
+                    className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 border border-white/30 cursor-pointer"
+                    role="button"
+                    aria-hidden="true"
+                    animate={{
+                        boxShadow: profileOpen
+                            ? "0 6px 18px rgba(168,85,247,0.12)"
+                            : "0 4px 10px rgba(0,0,0,0.12)",
+                    }}
+                    transition={{ duration: 0.25 }}
+                />
+
+                <motion.div
+                    animate={{ rotate: profileOpen ? 180 : 0 }}
+                    transition={{ type: "spring", stiffness: 220, damping: 22 }}
+                >
+                    <ChevronDown size={16} className="text-white/80" strokeWidth={2.5} />
+                </motion.div>
+            </motion.div>
 
             <AnimatePresence>
                 {profileOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 25,
-                        }}
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.18, ease: "easeOut" }}
                         className="absolute right-0 top-10 min-w-[240px] max-w-[280px] bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 shadow-lg overflow-hidden origin-top-right"
                     >
                         <ProfileHeader />
