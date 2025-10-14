@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import useBatteryStatus, { BatteryStatus } from "@/hooks/useBatteryStatus";
 import Link from "next/link";
+import PageTitle from "./PageTitle";
 
 const MENU_ITEMS = [
     { name: "Profile", icon: User },
@@ -69,12 +70,20 @@ export default function TopBar({ onMenuClick, isSidebarOpen }: TopBarProps) {
                         }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                     >
-                        <PanelRightClose size={20} />
+                        <PanelRightClose size={20} stroke="#777"/>
                     </motion.div>
                 </motion.button>
                 <Link href="/">
                     <div className="font-semibold">Glyph</div>
                 </Link>
+                <motion.div
+                    animate={{
+                        marginLeft: isSidebarOpen ? "180px" : "0px",
+                    }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
+                    <PageTitle />
+                </motion.div>
             </div>
 
             <div className="flex items-center justify-center gap-2 sm:gap-4">

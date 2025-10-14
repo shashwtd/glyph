@@ -3,13 +3,14 @@ import ImageConverter from "@/components/ImageConverter";
 import { SUPPORTED_FORMATS, ImageFormat } from "@/utils/imageConverter";
 
 interface PageProps {
-    params: {
+    params: Promise<{
         slug: string;
-    };
+    }>;
 }
 
-export default function ImageConversionPage({ params }: PageProps) {
-    const parts = params.slug.split("-to-");
+export default async function ImageConversionPage({ params }: PageProps) {
+    const { slug } = await params;
+    const parts = slug.split("-to-");
     
     if (parts.length !== 2) {
         notFound();

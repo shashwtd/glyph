@@ -10,9 +10,9 @@ export default function Home() {
             <div className="absolute inset-0 bg-[#0a0a0a]" />
             <div className="absolute inset-0 noise-texture" />
 
-            <div className="relative z-10 flex flex-col items-center justify-center gap-8 px-6">
+            <div className="relative z-10 flex flex-col items-center justify-center gap-4 px-6">
                 <motion.h1
-                    className="font-serif text-white/70 text-[clamp(3rem,12vw,8rem)] leading-[0.85] tracking-tight"
+                    className="pb-4 font-serif text-transparent bg-clip-text bg-gradient-to-b from-white/70 to-white/50 text-[clamp(3rem,12vw,8rem)] leading-[0.85] tracking-tight"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
@@ -34,14 +34,14 @@ export default function Home() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
                 >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 mt-4">
                         <Link href="https://github.com/your-repo" target="_blank" rel="noopener noreferrer">
                             <motion.button
                                 initial="rest"
                                 whileHover="hover"
                                 whileTap={{ scale: 0.98 }}
                                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                className="px-8 py-4 bg-white/10 hover:bg-white/15 backdrop-blur-xl text-neutral-400 font-mono text-sm flex items-center gap-3 cursor-pointer outline outline-transparent hover:outline-white/20 outline-offset-3 transition-colors"
+                                className="px-8 py-2.5 bg-white/10 hover:bg-white/15 backdrop-blur-xl text-neutral-400 font-mono text-sm flex items-center gap-3 cursor-pointer outline outline-transparent hover:outline-white/20 outline-offset-3 transition-colors"
                             >
                                 <Github size={18} strokeWidth={2} className="text-neutral-400" />
                                 <span>View GitHub</span>
@@ -53,7 +53,7 @@ export default function Home() {
                                 whileHover="hover"
                                 whileTap={{ scale: 0.98 }}
                                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                className="px-8 py-4 bg-white/10 hover:bg-white/15 backdrop-blur-xl text-neutral-400 font-mono text-sm flex items-center gap-3 cursor-pointer outline outline-transparent hover:outline-white/20 outline-offset-3 transition-colors"
+                                className="px-8 py-2.5 bg-white/10 hover:bg-white/15 backdrop-blur-xl text-neutral-400 font-mono text-sm flex items-center gap-3 cursor-pointer outline outline-transparent hover:outline-white/20 outline-offset-3 transition-colors"
                             >
                                 View App
                                 <motion.span
