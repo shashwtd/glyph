@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Download, X, ChevronDown, Copy, Check } from "lucide-react";
@@ -29,16 +29,11 @@ interface ImageConverterProps {
 
 export default function ImageConverter({ fromFormat, toFormat }: ImageConverterProps) {
     const router = useRouter();
-    const [file, setFile] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
+    const [files, setFiles] = useState<FileWithPreview[]>([]);
     const [converting, setConverting] = useState(false);
-    const [convertedBlob, setConvertedBlob] = useState<Blob | null>(null);
     const [showFromDropdown, setShowFromDropdown] = useState(false);
     const [showToDropdown, setShowToDropdown] = useState(false);
-    const [copied, setCopied] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [originalSize, setOriginalSize] = useState(0);
-    const [convertedSize, setConvertedSize] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const fromDropdownRef = useRef<HTMLDivElement>(null);
     const toDropdownRef = useRef<HTMLDivElement>(null);
@@ -175,25 +170,35 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         });
     };
 
-    const handleCopy = async () => {
-        if (!convertedBlob) return;
+    const handleCopy = async (index: number) => {
+        const fileData = files[index];
+        if (!fileData.convertedBlob) return;
         
         try {
-            const item = new ClipboardItem({ [convertedBlob.type]: convertedBlob });
+            const item = new ClipboardItem({ [fileData.convertedBlob.type]: fileData.convertedBlob });
             await navigator.clipboard.write([item]);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            setFiles((prev) =>
+                prev.map((f, i) => (i === index ? { ...f, copied: true } : f))
+            );
+            setTimeout(() => {
+                setFiles((prev) =>
+                    prev.map((f, i) => (i === index ? { ...f, copied: false } : f))
+                );
+            }, 2000);
         } catch (error) {
             console.error("Failed to copy:", error);
         }
     };
 
+    const handleRemove = (index: number) => {
+        setFiles((prev) => prev.filter((_, i) => i !== index));
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+
     const handleReset = () => {
-        setFile(null);
-        setPreview(null);
-        setConvertedBlob(null);
-        setOriginalSize(0);
-        setConvertedSize(0);
+        setFiles([]);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
@@ -219,19 +224,20 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
     };
 
-    const getSizeSaved = () => {
+    const getSizeSaved = (originalSize: number, convertedSize: number) => {
         if (originalSize === 0 || convertedSize === 0) return null;
         const saved = originalSize - convertedSize;
         const percentage = Math.round((saved / originalSize) * 100);
         return { saved, percentage };
     };
 
-    const sizeSaved = getSizeSaved();
+    const allConverted = files.length > 0 && files.every((f) => f.convertedBlob !== null);
 
     return (
         <div className="flex flex-col items-center gap-6 max-w-2xl w-full">
             <div className="flex items-center gap-4">
                 <FormatSelector
+                    ref={fromDropdownRef}
                     format={fromFormat}
                     isOpen={showFromDropdown}
                     onToggle={() => setShowFromDropdown(!showFromDropdown)}
@@ -251,6 +257,7 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                 </svg>
                 
                 <FormatSelector
+                    ref={toDropdownRef}
                     format={toFormat}
                     isOpen={showToDropdown}
                     onToggle={() => setShowToDropdown(!showToDropdown)}
@@ -264,7 +271,7 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
             </p>
 
             <div className="w-full space-y-4">
-                {!file ? (
+                {files.length === 0 ? (
                     <label 
                         className="block w-full"
                         onDragOver={handleDragOver}
@@ -275,6 +282,7 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                             ref={fileInputRef}
                             type="file"
                             accept="image/*"
+                            multiple
                             onChange={handleInputChange}
                             className="hidden"
                         />
@@ -291,87 +299,135 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                         >
                             <Upload size={32} strokeWidth={1.5} />
                             <span className="text-sm">
-                                {isDragging ? "drop image here" : "click to select or drag & drop"}
+                                {isDragging ? "drop images here" : "click to select or drag & drop"}
                             </span>
+                            <span className="text-xs text-white/40">supports multiple files</span>
                         </motion.div>
                     </label>
                 ) : (
                     <div className="space-y-4">
-                        <div className="relative w-full bg-white/5 border border-white/10 p-4">
-                            {preview && (
-                                <img
-                                    src={preview}
-                                    alt="Preview"
-                                    className="w-full h-auto max-h-64 object-contain"
-                                />
-                            )}
-                            <motion.button
-                                onClick={handleReset}
-                                className="absolute top-2 right-2 p-2 bg-black/50 backdrop-blur-xl border border-white/10 text-white/80 hover:bg-black/70 transition-colors"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                <X size={16} />
-                            </motion.button>
+                        <div className="space-y-3">
+                            {files.map((fileData, index) => {
+                                const sizeSaved = getSizeSaved(fileData.originalSize, fileData.convertedSize);
+                                
+                                return (
+                                    <div key={index} className="relative w-full bg-white/5 border border-white/10 p-4 space-y-3">
+                                        <div className="flex items-start gap-3">
+                                            <img
+                                                src={fileData.preview}
+                                                alt="Preview"
+                                                className="w-24 h-24 object-cover border border-white/10"
+                                            />
+                                            <div className="flex-1 space-y-2">
+                                                <p className="text-white/80 text-sm truncate">{fileData.file.name}</p>
+                                                <div className="flex items-center gap-4 text-xs text-white/50">
+                                                    <span>Original: {formatBytes(fileData.originalSize)}</span>
+                                                    {fileData.convertedSize > 0 && (
+                                                        <>
+                                                            <span>→</span>
+                                                            <span>Converted: {formatBytes(fileData.convertedSize)}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                {sizeSaved && (
+                                                    <div className="text-xs">
+                                                        {sizeSaved.saved > 0 ? (
+                                                            <span className="text-green-400/80">
+                                                                saved {formatBytes(sizeSaved.saved)} ({sizeSaved.percentage}%)
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-white/50">
+                                                                {sizeSaved.percentage < 0 ? `+${formatBytes(Math.abs(sizeSaved.saved))}` : "same size"}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <motion.button
+                                                onClick={() => handleRemove(index)}
+                                                className="p-2 bg-black/50 backdrop-blur-xl border border-white/10 text-white/80 hover:bg-black/70 transition-colors"
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                            >
+                                                <X size={16} />
+                                            </motion.button>
+                                        </div>
+
+                                        {fileData.convertedBlob && (
+                                            <div className="flex gap-2">
+                                                <motion.button
+                                                    onClick={() => handleCopy(index)}
+                                                    className="px-4 py-2 bg-white/10 border border-white/20 text-white/80 text-xs hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
+                                                    whileHover={{ scale: 1.01 }}
+                                                    whileTap={{ scale: 0.99 }}
+                                                >
+                                                    {fileData.copied ? (
+                                                        <>
+                                                            <Check size={14} />
+                                                            copied
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Copy size={14} />
+                                                            copy
+                                                        </>
+                                                    )}
+                                                </motion.button>
+                                                <motion.button
+                                                    onClick={() => handleDownload(index)}
+                                                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 text-white/80 text-xs hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
+                                                    whileHover={{ scale: 1.01 }}
+                                                    whileTap={{ scale: 0.99 }}
+                                                >
+                                                    <Download size={14} />
+                                                    download
+                                                </motion.button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
-                        {convertedBlob && sizeSaved && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="text-center text-sm text-white/60"
-                            >
-                                {sizeSaved.saved > 0 ? (
-                                    <span className="text-green-400/80">
-                                        saved {formatBytes(sizeSaved.saved)} ({sizeSaved.percentage}%)
-                                    </span>
-                                ) : (
-                                    <span className="text-white/50">
-                                        {formatBytes(convertedSize)} • {sizeSaved.percentage > 0 ? "larger" : "same size"}
-                                    </span>
-                                )}
-                            </motion.div>
-                        )}
-
                         <div className="flex gap-3">
-                            {!convertedBlob ? (
-                                <motion.button
-                                    onClick={handleConvert}
-                                    disabled={converting}
-                                    className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                                    whileHover={!converting ? { scale: 1.01 } : {}}
-                                    whileTap={!converting ? { scale: 0.99 } : {}}
-                                >
-                                    {converting ? "converting..." : "convert"}
-                                </motion.button>
-                            ) : (
+                            {!allConverted ? (
                                 <>
                                     <motion.button
-                                        onClick={handleCopy}
-                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
+                                        onClick={handleConvertAll}
+                                        disabled={converting}
+                                        className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                        whileHover={!converting ? { scale: 1.01 } : {}}
+                                        whileTap={!converting ? { scale: 0.99 } : {}}
+                                    >
+                                        {converting ? "converting..." : `convert all (${files.length})`}
+                                    </motion.button>
+                                    <motion.button
+                                        onClick={handleReset}
+                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200"
                                         whileHover={{ scale: 1.01 }}
                                         whileTap={{ scale: 0.99 }}
                                     >
-                                        {copied ? (
-                                            <>
-                                                <Check size={16} />
-                                                copied
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Copy size={16} />
-                                                copy
-                                            </>
-                                        )}
+                                        clear
                                     </motion.button>
+                                </>
+                            ) : (
+                                <>
                                     <motion.button
-                                        onClick={handleDownload}
+                                        onClick={handleDownloadAll}
                                         className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
                                         whileHover={{ scale: 1.01 }}
                                         whileTap={{ scale: 0.99 }}
                                     >
                                         <Download size={16} />
-                                        download
+                                        download all
+                                    </motion.button>
+                                    <motion.button
+                                        onClick={handleReset}
+                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200"
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                    >
+                                        clear
                                     </motion.button>
                                 </>
                             )}
@@ -379,25 +435,26 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                     </div>
                 )}
             </div>
+
+            <p className="text-white/40 text-xs text-center max-w-md mt-2">
+                all processing happens locally in your browser • your files never leave your device
+            </p>
         </div>
     );
 }
 
-function FormatSelector({
-    format,
-    isOpen,
-    onToggle,
-    onSelect,
-    excludeFormat,
-}: {
-    format: ImageFormat;
-    isOpen: boolean;
-    onToggle: () => void;
-    onSelect: (format: ImageFormat) => void;
-    excludeFormat: ImageFormat;
-}) {
+const FormatSelector = React.forwardRef<
+    HTMLDivElement,
+    {
+        format: ImageFormat;
+        isOpen: boolean;
+        onToggle: () => void;
+        onSelect: (format: ImageFormat) => void;
+        excludeFormat: ImageFormat;
+    }
+>(({ format, isOpen, onToggle, onSelect, excludeFormat }, ref) => {
     return (
-        <div className="relative">
+        <div ref={ref} className="relative">
             <motion.button
                 onClick={onToggle}
                 className="flex items-center gap-2 px-4 py-2 border border-white/10 hover:border-white/20 transition-all cursor-pointer"
@@ -439,4 +496,6 @@ function FormatSelector({
             </AnimatePresence>
         </div>
     );
-}
+});
+
+FormatSelector.displayName = "FormatSelector";
