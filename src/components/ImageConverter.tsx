@@ -13,6 +13,15 @@ import {
     SUPPORTED_FORMATS,
 } from "@/utils/imageConverter";
 
+interface FileWithPreview {
+    file: File;
+    preview: string;
+    originalSize: number;
+    convertedBlob: Blob | null;
+    convertedSize: number;
+    copied: boolean;
+}
+
 interface ImageConverterProps {
     fromFormat: ImageFormat;
     toFormat: ImageFormat;
@@ -31,21 +40,56 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
     const [originalSize, setOriginalSize] = useState(0);
     const [convertedSize, setConvertedSize] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const fromDropdownRef = useRef<HTMLDivElement>(null);
+    const toDropdownRef = useRef<HTMLDivElement>(null);
 
-    const handleFileChange = (selectedFile: File) => {
-        setFile(selectedFile);
-        setOriginalSize(selectedFile.size);
-        setConvertedBlob(null);
-        setConvertedSize(0);
-        const reader = new FileReader();
-        reader.onload = (e) => setPreview(e.target?.result as string);
-        reader.readAsDataURL(selectedFile);
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                fromDropdownRef.current &&
+                !fromDropdownRef.current.contains(event.target as Node)
+            ) {
+                setShowFromDropdown(false);
+            }
+            if (
+                toDropdownRef.current &&
+                !toDropdownRef.current.contains(event.target as Node)
+            ) {
+                setShowToDropdown(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleFileChange = (selectedFiles: FileList) => {
+        const newFiles: FileWithPreview[] = [];
+        
+        Array.from(selectedFiles).forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                newFiles.push({
+                    file,
+                    preview: e.target?.result as string,
+                    originalSize: file.size,
+                    convertedBlob: null,
+                    convertedSize: 0,
+                    copied: false,
+                });
+                
+                if (newFiles.length === selectedFiles.length) {
+                    setFiles((prev) => [...prev, ...newFiles]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            handleFileChange(selectedFile);
+        const selectedFiles = e.target.files;
+        if (selectedFiles && selectedFiles.length > 0) {
+            handleFileChange(selectedFiles);
         }
     };
 
@@ -63,20 +107,29 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         e.preventDefault();
         setIsDragging(false);
         
-        const droppedFile = e.dataTransfer.files[0];
-        if (droppedFile && droppedFile.type.startsWith("image/")) {
-            handleFileChange(droppedFile);
+        const droppedFiles = e.dataTransfer.files;
+        const imageFiles = Array.from(droppedFiles).filter((file) =>
+            file.type.startsWith("image/")
+        );
+        
+        if (imageFiles.length > 0) {
+            const fileList = new DataTransfer();
+            imageFiles.forEach((file) => fileList.items.add(file));
+            handleFileChange(fileList.files);
         }
     };
 
-    const handleConvert = async () => {
-        if (!file) return;
-
+    const handleConvert = async (index: number) => {
         setConverting(true);
         try {
-            const blob = await convertImage(file, toFormat);
-            setConvertedBlob(blob);
-            setConvertedSize(blob.size);
+            const blob = await convertImage(files[index].file, toFormat);
+            setFiles((prev) =>
+                prev.map((f, i) =>
+                    i === index
+                        ? { ...f, convertedBlob: blob, convertedSize: blob.size }
+                        : f
+                )
+            );
         } catch (error) {
             console.error("Conversion failed:", error);
         } finally {
@@ -84,11 +137,42 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         }
     };
 
-    const handleDownload = () => {
-        if (!convertedBlob || !file) return;
-        const originalName = file.name.replace(/\.[^/.]+$/, "");
+    const handleConvertAll = async () => {
+        setConverting(true);
+        try {
+            const promises = files.map((fileData) =>
+                convertImage(fileData.file, toFormat)
+            );
+            const blobs = await Promise.all(promises);
+            
+            setFiles((prev) =>
+                prev.map((f, i) => ({
+                    ...f,
+                    convertedBlob: blobs[i],
+                    convertedSize: blobs[i].size,
+                }))
+            );
+        } catch (error) {
+            console.error("Conversion failed:", error);
+        } finally {
+            setConverting(false);
+        }
+    };
+
+    const handleDownload = (index: number) => {
+        const fileData = files[index];
+        if (!fileData.convertedBlob) return;
+        const originalName = fileData.file.name.replace(/\.[^/.]+$/, "");
         const newFilename = `${originalName}.${getFileExtension(toFormat)}`;
-        downloadBlob(convertedBlob, newFilename);
+        downloadBlob(fileData.convertedBlob, newFilename);
+    };
+
+    const handleDownloadAll = () => {
+        files.forEach((fileData, index) => {
+            if (fileData.convertedBlob) {
+                handleDownload(index);
+            }
+        });
     };
 
     const handleCopy = async () => {
