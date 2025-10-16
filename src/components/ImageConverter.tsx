@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Download, X, ChevronDown, Copy, Check } from "lucide-react";
+import { Upload, Download, X, ChevronDown, Copy, Check, ArrowLeftRight } from "lucide-react";
 import {
     convertImage,
     downloadBlob,
@@ -216,6 +216,16 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         setShowToDropdown(false);
     };
 
+    const handleSwapFormats = () => {
+        if (fromFormat === toFormat) {
+            return;
+        }
+
+        setShowFromDropdown(false);
+        setShowToDropdown(false);
+        router.push(`/${toFormat}-to-${fromFormat}`);
+    };
+
     const formatBytes = (bytes: number) => {
         if (bytes === 0) return "0 B";
         const k = 1024;
@@ -244,18 +254,17 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                     onSelect={(format) => handleFormatChange("from", format)}
                     excludeFormat={toFormat}
                 />
-                
-                <svg width="48" height="24" viewBox="0 0 48 24" className="text-white/30">
-                    <path
-                        d="M2 12 L46 12 M46 12 L38 6 M46 12 L38 18"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
-                
+                <motion.button
+                    type="button"
+                    onClick={handleSwapFormats}
+                    className="p-2 rounded-full border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors shrink-0"
+                    aria-label="swap conversion direction"
+                    whileHover={{ rotate: 180, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                >
+                    <ArrowLeftRight size={20} />
+                </motion.button>
+
                 <FormatSelector
                     ref={toDropdownRef}
                     format={toFormat}
