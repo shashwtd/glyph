@@ -8,7 +8,7 @@ export default function AppPage() {
     const [input, setInput] = useState("");
 
     return (
-        <div className="relative z-10 w-full h-screen flex flex-col items-center justify-center gap-8 px-6">
+        <div className="relative z-10 w-full h-screen flex flex-col items-center justify-center gap-8">
             <motion.div
                 className="flex flex-col items-center gap-4 max-w-2xl w-full"
                 initial={{ opacity: 0, y: 20 }}

@@ -26,7 +26,7 @@ export default async function ImageConversionPage({ params }: PageProps) {
     }
 
     return (
-        <div className="relative z-10 w-full h-screen flex flex-col items-center justify-center gap-8 px-6">
+        <div className="relative z-10 w-full h-screen flex flex-col items-center justify-center gap-8">
             <ImageConverter
                 fromFormat={fromFormat as ImageFormat}
                 toFormat={toFormat as ImageFormat}

@@ -57,7 +57,6 @@ export default function Home() {
                             >
                                 View App
                                 <motion.span
-                                    // arrow will move right on hover
                                     variants={{ rest: { x: 0 }, hover: { x: 6 } }}
                                     transition={{ type: "spring", stiffness: 400, damping: 26 }}
                                 >
