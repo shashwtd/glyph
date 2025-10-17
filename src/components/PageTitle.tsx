@@ -10,6 +10,18 @@ export default function PageTitle() {
         return null;
     }
     
+    // Check for image compression route
+    if (pathname === "/compress") {
+        return (
+            <>
+                <span className="text-white/30 hidden sm:inline">/</span>
+                <span className="text-white/60 text-xs sm:text-sm hidden sm:inline ml-4">
+                    Image compression tool
+                </span>
+            </>
+        );
+    }
+    
     // Check if it's an image conversion route
     const match = pathname.match(/^\/([^/]+)-to-([^/]+)$/);
     if (match) {

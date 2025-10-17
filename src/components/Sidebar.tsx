@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Plug, Image } from "lucide-react";
+import { Plug, Image, Plus, ChevronsRight, Minimize2 } from "lucide-react";
 import Link from "next/link";
 
 interface SidebarProps {
@@ -20,6 +20,10 @@ const IMAGE_CONVERSIONS = [
     { from: "webp", to: "png", label: "WebP to PNG" },
 ];
 
+const IMAGE_TOOLS = [
+    { label: "Image Compression", href: "/compress" },
+];
+
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return (
         <AnimatePresence>
@@ -33,7 +37,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         stiffness: 400,
                         damping: 40,
                     }}
-                    className="fixed left-0 top-0 h-screen z-20 border-r border-white/20 overflow-hidden select-none"
+                    className="fixed left-0 top-0 h-screen z-30 border-r border-white/20 overflow-hidden select-none"
                     style={{ width: SIDEBAR_WIDTH }}
                 >
                     <div className="absolute inset-0 bg-[#0f0f0f]" />
@@ -41,10 +45,30 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                     <div className="relative flex flex-col h-full font-mono text-white/80 pt-14">
                         <div className="flex-1 overflow-y-auto px-4 py-6">
-                            <div className="space-y-6">
+                            <div className="space-y-6 text-sm">
+                                <Link href="/app" className="flex">
+                                    <div className="group flex items-center justify-start gap-3 w-full py-2 px-2.5 bg-neutral-800/70 cursor-pointer outline outline-offset-2 outline-white/10 hover:outline-white/20 duration-200 active:scale-95">
+                                        <div className="flex size-4.5 relative">
+                                            <Plus
+                                                size={18}
+                                                className="absolute size-full duration-300 group-hover:rotate-180 group-hover:opacity-0"
+                                            />
+                                            <ChevronsRight
+                                                size={18}
+                                                className="absolute size-full -translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 duration-300"
+                                            />
+                                        </div>
+                                        New Chat
+                                    </div>
+                                </Link>
                                 <ToolSection
                                     title="Image Tools"
                                     icon={Image}
+                                    items={IMAGE_TOOLS}
+                                />
+                                <ToolSection
+                                    title="Image Conversions"
+                                    icon={Minimize2}
                                     items={IMAGE_CONVERSIONS.map((conv) => ({
                                         label: conv.label,
                                         href: `/${conv.from}-to-${conv.to}`,
