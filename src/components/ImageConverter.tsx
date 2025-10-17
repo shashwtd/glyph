@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Download, X, ChevronDown, Copy, Check, ArrowLeftRight } from "lucide-react";
+import { Upload, Download, X, ChevronDown, Copy, Check, ArrowLeftRight, AlertCircle } from "lucide-react";
 import {
     convertImage,
     downloadBlob,
@@ -11,6 +11,7 @@ import {
     ImageFormat,
     FORMAT_LABELS,
     SUPPORTED_FORMATS,
+    FORMAT_MIME_TYPES,
 } from "@/utils/imageConverter";
 
 interface FileWithPreview {
@@ -20,6 +21,8 @@ interface FileWithPreview {
     convertedBlob: Blob | null;
     convertedSize: number;
     copied: boolean;
+    error?: string;
+    converting?: boolean;
 }
 
 interface ImageConverterProps {
@@ -27,16 +30,38 @@ interface ImageConverterProps {
     toFormat: ImageFormat;
 }
 
+// Global storage for files to persist across route changes
+const fileStorage = new Map<string, FileWithPreview[]>();
+
 export default function ImageConverter({ fromFormat, toFormat }: ImageConverterProps) {
     const router = useRouter();
-    const [files, setFiles] = useState<FileWithPreview[]>([]);
+    const storageKey = useRef(`converter-files`).current;
+    const [files, setFiles] = useState<FileWithPreview[]>(() => {
+        // Initialize from storage if available
+        return fileStorage.get(storageKey) || [];
+    });
     const [converting, setConverting] = useState(false);
     const [showFromDropdown, setShowFromDropdown] = useState(false);
     const [showToDropdown, setShowToDropdown] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [errors, setErrors] = useState<string[]>([]);
+    const [formatChangeNotice, setFormatChangeNotice] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const fromDropdownRef = useRef<HTMLDivElement>(null);
     const toDropdownRef = useRef<HTMLDivElement>(null);
+    const previousFormats = useRef({ from: fromFormat, to: toFormat });
+
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const MIN_FILE_SIZE = 100; // 100 bytes
+
+    // Persist files to storage whenever they change
+    useEffect(() => {
+        if (files.length > 0) {
+            fileStorage.set(storageKey, files);
+        } else {
+            fileStorage.delete(storageKey);
+        }
+    }, [files, storageKey]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -58,27 +83,193 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleFileChange = (selectedFiles: FileList) => {
+    // Handle format changes - reset conversion state but keep files
+    useEffect(() => {
+        const formatChanged =
+            previousFormats.current.from !== fromFormat ||
+            previousFormats.current.to !== toFormat;
+
+        if (formatChanged && files.length > 0) {
+            // Show notice that files are being prepared for new conversion
+            setFormatChangeNotice(true);
+            setTimeout(() => setFormatChangeNotice(false), 3000);
+
+            // Re-validate files against new source format and reset conversion state
+            setFiles((prev) =>
+                prev.map((f) => {
+                    // Validate file against new fromFormat
+                    const expectedMime = FORMAT_MIME_TYPES[fromFormat];
+                    const actualMime = f.file.type;
+                    const isJpegMatch =
+                        fromFormat === "jpg" &&
+                        (actualMime === "image/jpeg" || actualMime === "image/jpg");
+
+                    let error: string | undefined = undefined;
+
+                    if (actualMime !== expectedMime && !isJpegMatch) {
+                        error = `File is ${getFormatFromMime(actualMime)}, expected ${FORMAT_LABELS[fromFormat]}`;
+                    }
+
+                    return {
+                        ...f,
+                        convertedBlob: null,
+                        convertedSize: 0,
+                        error,
+                        converting: false,
+                        copied: false,
+                    };
+                })
+            );
+        }
+
+        // Update previous formats
+        previousFormats.current = { from: fromFormat, to: toFormat };
+    }, [fromFormat, toFormat]); // Removed files.length dependency
+
+    // Auto-dismiss errors after 5 seconds
+    useEffect(() => {
+        if (errors.length > 0) {
+            const timer = setTimeout(() => {
+                setErrors([]);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [errors]);
+
+    const addError = (message: string) => {
+        setErrors((prev) => [...prev, message]);
+    };
+
+    const validateFile = (file: File): { valid: boolean; error?: string } => {
+        // Check if file exists and has content
+        if (!file || file.size === 0) {
+            return { valid: false, error: `Empty file: ${file?.name || "Unknown"}` };
+        }
+
+        // Check minimum file size
+        if (file.size < MIN_FILE_SIZE) {
+            return { valid: false, error: `${file.name} is too small (minimum 100 bytes)` };
+        }
+
+        // Check maximum file size
+        if (file.size > MAX_FILE_SIZE) {
+            return {
+                valid: false,
+                error: `${file.name} is too large (maximum 50MB)`,
+            };
+        }
+
+        // Check if it's an image file
+        if (!file.type.startsWith("image/")) {
+            return {
+                valid: false,
+                error: `${file.name} is not an image file`,
+            };
+        }
+
+        // Check if the format matches the expected source format
+        const expectedMime = FORMAT_MIME_TYPES[fromFormat];
+        const actualMime = file.type;
+
+        // Special handling for JPEG (can be image/jpeg or image/jpg)
+        const isJpegMatch =
+            fromFormat === "jpg" &&
+            (actualMime === "image/jpeg" || actualMime === "image/jpg");
+
+        if (actualMime !== expectedMime && !isJpegMatch) {
+            return {
+                valid: false,
+                error: `${file.name} is ${getFormatFromMime(actualMime)}, expected ${FORMAT_LABELS[fromFormat]}`,
+            };
+        }
+
+        return { valid: true };
+    };
+
+    const getFormatFromMime = (mime: string): string => {
+        const entry = Object.entries(FORMAT_MIME_TYPES).find(([_, m]) => m === mime);
+        return entry ? FORMAT_LABELS[entry[0] as ImageFormat] : mime;
+    };
+
+    const validateImage = (file: File): Promise<boolean> => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                // Check for valid dimensions
+                if (img.width === 0 || img.height === 0) {
+                    resolve(false);
+                } else {
+                    resolve(true);
+                }
+            };
+
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                resolve(false);
+            };
+
+            img.src = url;
+        });
+    };
+
+    const handleFileChange = async (selectedFiles: FileList) => {
         const newFiles: FileWithPreview[] = [];
-        
-        Array.from(selectedFiles).forEach((file) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
+        const errorMessages: string[] = [];
+        const existingFileNames = new Set(files.map((f) => f.file.name));
+
+        for (const file of Array.from(selectedFiles)) {
+            // Check for duplicates
+            if (existingFileNames.has(file.name)) {
+                errorMessages.push(`${file.name} is already added`);
+                continue;
+            }
+
+            // Validate file
+            const validation = validateFile(file);
+            if (!validation.valid) {
+                errorMessages.push(validation.error!);
+                continue;
+            }
+
+            // Validate image integrity
+            const isValidImage = await validateImage(file);
+            if (!isValidImage) {
+                errorMessages.push(`${file.name} is corrupted or invalid`);
+                continue;
+            }
+
+            // Create preview
+            try {
+                const reader = new FileReader();
+                const preview = await new Promise<string>((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target?.result as string);
+                    reader.onerror = () => reject(new Error("Failed to read file"));
+                    reader.readAsDataURL(file);
+                });
+
                 newFiles.push({
                     file,
-                    preview: e.target?.result as string,
+                    preview,
                     originalSize: file.size,
                     convertedBlob: null,
                     convertedSize: 0,
                     copied: false,
                 });
-                
-                if (newFiles.length === selectedFiles.length) {
-                    setFiles((prev) => [...prev, ...newFiles]);
-                }
-            };
-            reader.readAsDataURL(file);
-        });
+            } catch (error) {
+                errorMessages.push(`Failed to read ${file.name}`);
+            }
+        }
+
+        if (errorMessages.length > 0) {
+            errorMessages.forEach((msg) => addError(msg));
+        }
+
+        if (newFiles.length > 0) {
+            setFiles((prev) => [...prev, ...newFiles]);
+        }
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,40 +306,105 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
     };
 
     const handleConvert = async (index: number) => {
-        setConverting(true);
+        setFiles((prev) =>
+            prev.map((f, i) => (i === index ? { ...f, converting: true, error: undefined } : f))
+        );
+
         try {
-            const blob = await convertImage(files[index].file, toFormat);
+            const fileData = files[index];
+
+            // Validate before conversion
+            if (fileData.file.size === 0) {
+                throw new Error("File is empty");
+            }
+
+            const blob = await convertImage(fileData.file, toFormat);
+
+            // Validate conversion result
+            if (!blob || blob.size === 0) {
+                throw new Error("Conversion produced empty result");
+            }
+
             setFiles((prev) =>
                 prev.map((f, i) =>
                     i === index
-                        ? { ...f, convertedBlob: blob, convertedSize: blob.size }
+                        ? {
+                              ...f,
+                              convertedBlob: blob,
+                              convertedSize: blob.size,
+                              converting: false,
+                          }
                         : f
                 )
             );
         } catch (error) {
-            console.error("Conversion failed:", error);
-        } finally {
-            setConverting(false);
+            const errorMessage =
+                error instanceof Error ? error.message : "Conversion failed";
+            setFiles((prev) =>
+                prev.map((f, i) =>
+                    i === index
+                        ? {
+                              ...f,
+                              error: errorMessage,
+                              converting: false,
+                          }
+                        : f
+                )
+            );
+            addError(`${files[index].file.name}: ${errorMessage}`);
         }
     };
 
     const handleConvertAll = async () => {
         setConverting(true);
+        setFiles((prev) =>
+            prev.map((f) => ({ ...f, converting: true, error: undefined }))
+        );
+
         try {
-            const promises = files.map((fileData) =>
-                convertImage(fileData.file, toFormat)
+            const results = await Promise.allSettled(
+                files.map((fileData) => convertImage(fileData.file, toFormat))
             );
-            const blobs = await Promise.all(promises);
-            
+
             setFiles((prev) =>
-                prev.map((f, i) => ({
-                    ...f,
-                    convertedBlob: blobs[i],
-                    convertedSize: blobs[i].size,
-                }))
+                prev.map((f, i) => {
+                    const result = results[i];
+
+                    if (result.status === "fulfilled") {
+                        const blob = result.value;
+
+                        // Validate result
+                        if (!blob || blob.size === 0) {
+                            return {
+                                ...f,
+                                error: "Conversion produced empty result",
+                                converting: false,
+                            };
+                        }
+
+                        return {
+                            ...f,
+                            convertedBlob: blob,
+                            convertedSize: blob.size,
+                            converting: false,
+                        };
+                    } else {
+                        const errorMessage =
+                            result.reason instanceof Error
+                                ? result.reason.message
+                                : "Conversion failed";
+                        addError(`${f.file.name}: ${errorMessage}`);
+                        return {
+                            ...f,
+                            error: errorMessage,
+                            converting: false,
+                        };
+                    }
+                })
             );
         } catch (error) {
-            console.error("Conversion failed:", error);
+            addError("Batch conversion failed");
+            setFiles((prev) => prev.map((f) => ({ ...f, converting: false })));
         } finally {
             setConverting(false);
         }
@@ -199,6 +455,7 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
 
     const handleReset = () => {
         setFiles([]);
+        fileStorage.delete(storageKey);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
@@ -241,48 +498,107 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
         return { saved, percentage };
     };
 
-    const allConverted = files.length > 0 && files.every((f) => f.convertedBlob !== null);
+    const allConverted = files.length > 0 && files.every((f) => f.convertedBlob !== null || f.error);
+    const hasErrors = files.some((f) => f.error);
+    const anyConverting = files.some((f) => f.converting);
 
     return (
-        <div className="flex flex-col items-center gap-6 max-w-2xl w-full">
-            <div className="flex items-center gap-4">
-                <FormatSelector
-                    ref={fromDropdownRef}
-                    format={fromFormat}
-                    isOpen={showFromDropdown}
-                    onToggle={() => setShowFromDropdown(!showFromDropdown)}
-                    onSelect={(format) => handleFormatChange("from", format)}
-                    excludeFormat={toFormat}
-                />
-                <motion.button
-                    type="button"
-                    onClick={handleSwapFormats}
-                    className="p-2 rounded-full border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors shrink-0"
-                    aria-label="swap conversion direction"
-                    whileHover={{ rotate: 180, scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                >
-                    <ArrowLeftRight size={20} />
-                </motion.button>
+        <div className="w-full h-screen flex flex-col pt-14">
+            <div className="flex-1 overflow-y-auto py-16">
+                <div className="flex flex-col items-center gap-6 max-w-2xl w-full mx-auto py-8 px-6">
+                    <div className="flex items-center gap-4">
+                        <FormatSelector
+                            ref={fromDropdownRef}
+                            format={fromFormat}
+                            isOpen={showFromDropdown}
+                            onToggle={() => setShowFromDropdown(!showFromDropdown)}
+                            onSelect={(format) => handleFormatChange("from", format)}
+                            excludeFormat={toFormat}
+                        />
+                        <motion.button
+                            type="button"
+                            onClick={handleSwapFormats}
+                            className="p-2 rounded-full border border-white/10 text-white/50 hover:text-white/80 hover:border-white/20 transition-colors shrink-0 cursor-pointer"
+                            aria-label="swap conversion direction"
+                            whileHover={{ rotate: 180, scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <ArrowLeftRight size={20} />
+                        </motion.button>
 
-                <FormatSelector
-                    ref={toDropdownRef}
-                    format={toFormat}
-                    isOpen={showToDropdown}
-                    onToggle={() => setShowToDropdown(!showToDropdown)}
-                    onSelect={(format) => handleFormatChange("to", format)}
-                    excludeFormat={fromFormat}
-                />
-            </div>
+                        <FormatSelector
+                            ref={toDropdownRef}
+                            format={toFormat}
+                            isOpen={showToDropdown}
+                            onToggle={() => setShowToDropdown(!showToDropdown)}
+                            onSelect={(format) => handleFormatChange("to", format)}
+                            excludeFormat={fromFormat}
+                        />
+                    </div>
 
-            <p className="text-white/60 text-center max-w-md">
-                convert your images in-browser, no upload required
-            </p>
+                    <p className="text-white/60 text-center max-w-md">
+                        convert your images in-browser, no upload required
+                    </p>
+
+                    {/* Format Change Notice */}
+                    <AnimatePresence>
+                        {formatChangeNotice && files.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="w-full"
+                            >
+                                <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/30 text-blue-200/90 text-sm">
+                                    <AlertCircle size={16} className="shrink-0" />
+                                    <span>
+                                        Files prepared for {FORMAT_LABELS[fromFormat]} → {FORMAT_LABELS[toFormat]} conversion
+                                    </span>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Error Notifications */}
+                    <AnimatePresence>
+                        {errors.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="w-full space-y-2"
+                            >
+                                {errors.map((error, index) => (
+                                    <motion.div
+                                        key={index}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 20 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-200/90 text-sm"
+                                    >
+                                        <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                                        <span className="flex-1">{error}</span>
+                                        <button
+                                            onClick={() =>
+                                                setErrors((prev) =>
+                                                    prev.filter((_, i) => i !== index)
+                                                )
+                                            }
+                                            className="text-red-200/60 hover:text-red-200 cursor-pointer"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </motion.div>
+                                ))}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
             <div className="w-full space-y-4">
                 {files.length === 0 ? (
                     <label 
-                        className="block w-full"
+                        className="block w-full cursor-pointer"
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
@@ -290,7 +606,7 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/*"
+                            accept={FORMAT_MIME_TYPES[fromFormat]}
                             multiple
                             onChange={handleInputChange}
                             className="hidden"
@@ -310,7 +626,9 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                             <span className="text-sm">
                                 {isDragging ? "drop images here" : "click to select or drag & drop"}
                             </span>
-                            <span className="text-xs text-white/40">supports multiple files</span>
+                            <span className="text-xs text-white/40">
+                                {FORMAT_LABELS[fromFormat]} files only • multiple files supported
+                            </span>
                         </motion.div>
                     </label>
                 ) : (
@@ -338,7 +656,13 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                                                         </>
                                                     )}
                                                 </div>
-                                                {sizeSaved && (
+                                                {fileData.error && (
+                                                    <div className="flex items-center gap-1.5 text-xs text-red-300/90">
+                                                        <AlertCircle size={12} />
+                                                        <span>{fileData.error}</span>
+                                                    </div>
+                                                )}
+                                                {!fileData.error && sizeSaved && (
                                                     <div className="text-xs">
                                                         {sizeSaved.saved > 0 ? (
                                                             <span className="text-green-400/80">
@@ -351,10 +675,15 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                                                         )}
                                                     </div>
                                                 )}
+                                                {fileData.converting && (
+                                                    <div className="text-xs text-white/60">
+                                                        converting...
+                                                    </div>
+                                                )}
                                             </div>
                                             <motion.button
                                                 onClick={() => handleRemove(index)}
-                                                className="p-2 bg-black/50 backdrop-blur-xl border border-white/10 text-white/80 hover:bg-black/70 transition-colors"
+                                                className="p-2 bg-black/50 backdrop-blur-xl border border-white/10 text-white/80 hover:bg-black/70 transition-colors cursor-pointer"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                             >
@@ -362,11 +691,11 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                                             </motion.button>
                                         </div>
 
-                                        {fileData.convertedBlob && (
+                                        {fileData.convertedBlob && !fileData.error && (
                                             <div className="flex gap-2">
                                                 <motion.button
                                                     onClick={() => handleCopy(index)}
-                                                    className="px-4 py-2 bg-white/10 border border-white/20 text-white/80 text-xs hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
+                                                    className="px-4 py-2 bg-white/10 border border-white/20 text-white/80 text-xs hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                                                     whileHover={{ scale: 1.01 }}
                                                     whileTap={{ scale: 0.99 }}
                                                 >
@@ -384,7 +713,7 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                                                 </motion.button>
                                                 <motion.button
                                                     onClick={() => handleDownload(index)}
-                                                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 text-white/80 text-xs hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
+                                                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 text-white/80 text-xs hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                                                     whileHover={{ scale: 1.01 }}
                                                     whileTap={{ scale: 0.99 }}
                                                 >
@@ -403,16 +732,16 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                                 <>
                                     <motion.button
                                         onClick={handleConvertAll}
-                                        disabled={converting}
-                                        className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                                        whileHover={!converting ? { scale: 1.01 } : {}}
-                                        whileTap={!converting ? { scale: 0.99 } : {}}
+                                        disabled={anyConverting}
+                                        className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+                                        whileHover={!anyConverting ? { scale: 1.01 } : {}}
+                                        whileTap={!anyConverting ? { scale: 0.99 } : {}}
                                     >
-                                        {converting ? "converting..." : `convert all (${files.length})`}
+                                        {anyConverting ? "converting..." : `convert all (${files.length})`}
                                     </motion.button>
                                     <motion.button
                                         onClick={handleReset}
-                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200"
+                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200 cursor-pointer"
                                         whileHover={{ scale: 1.01 }}
                                         whileTap={{ scale: 0.99 }}
                                     >
@@ -421,18 +750,20 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
                                 </>
                             ) : (
                                 <>
-                                    <motion.button
-                                        onClick={handleDownloadAll}
-                                        className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2"
-                                        whileHover={{ scale: 1.01 }}
-                                        whileTap={{ scale: 0.99 }}
-                                    >
-                                        <Download size={16} />
-                                        download all
-                                    </motion.button>
+                                    {!hasErrors && (
+                                        <motion.button
+                                            onClick={handleDownloadAll}
+                                            className="flex-1 px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                                            whileHover={{ scale: 1.01 }}
+                                            whileTap={{ scale: 0.99 }}
+                                        >
+                                            <Download size={16} />
+                                            download all
+                                        </motion.button>
+                                    )}
                                     <motion.button
                                         onClick={handleReset}
-                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200"
+                                        className="px-6 py-3 bg-white/10 border border-white/20 text-white/80 text-sm hover:bg-white/15 transition-all duration-200 cursor-pointer"
                                         whileHover={{ scale: 1.01 }}
                                         whileTap={{ scale: 0.99 }}
                                     >
@@ -448,6 +779,8 @@ export default function ImageConverter({ fromFormat, toFormat }: ImageConverterP
             <p className="text-white/40 text-xs text-center max-w-md mt-2">
                 all processing happens locally in your browser • your files never leave your device
             </p>
+                </div>
+            </div>
         </div>
     );
 }
@@ -494,7 +827,7 @@ const FormatSelector = React.forwardRef<
                             <motion.button
                                 key={fmt}
                                 onClick={() => onSelect(fmt)}
-                                className="w-full px-4 py-2.5 text-left text-white/70 hover:bg-white/10 hover:text-white/90 transition-colors text-sm"
+                                className="w-full px-4 py-2.5 text-left text-white/70 hover:bg-white/10 hover:text-white/90 transition-colors text-sm cursor-pointer"
                                 whileHover={{ x: 4 }}
                             >
                                 {FORMAT_LABELS[fmt]}
