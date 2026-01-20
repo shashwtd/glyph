@@ -35,7 +35,7 @@ export default function Home() {
                     transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
                 >
                     <div className="flex items-center gap-4 mt-4">
-                        <Link href="https://github.com/your-repo" target="_blank" rel="noopener noreferrer">
+                        <Link href="https://github.com/shashwtd/glyph" target="_blank" rel="noopener noreferrer">
                             <motion.button
                                 initial="rest"
                                 whileHover="hover"

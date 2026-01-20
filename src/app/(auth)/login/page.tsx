@@ -1,5 +1,10 @@
 import { login, signup } from './actions'
 
+export const metadata = {
+  title: "Login - Glyph",
+  description: "Sign in to your Glyph account",
+};
+
 export default function LoginPage() {
   return (
     <form>

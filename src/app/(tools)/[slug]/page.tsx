@@ -1,11 +1,41 @@
 import { notFound } from "next/navigation";
 import ImageConverter from "@/components/ImageConverter";
-import { SUPPORTED_FORMATS, ImageFormat } from "@/utils/imageConverter";
+import { SUPPORTED_FORMATS, ImageFormat, FORMAT_LABELS } from "@/utils/imageConverter";
+import type { Metadata } from "next";
 
 interface PageProps {
     params: Promise<{
         slug: string;
     }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { slug } = await params;
+    const parts = slug.split("-to-");
+
+    if (parts.length !== 2) {
+        return {
+            title: "Not Found - Glyph",
+            description: "Page not found",
+        };
+    }
+
+    const [fromFormat, toFormat] = parts as [string, string];
+
+    if (
+        !SUPPORTED_FORMATS.includes(fromFormat as ImageFormat) ||
+        !SUPPORTED_FORMATS.includes(toFormat as ImageFormat)
+    ) {
+        return {
+            title: "Not Found - Glyph",
+            description: "Page not found",
+        };
+    }
+
+    return {
+        title: `${FORMAT_LABELS[fromFormat as ImageFormat]} to ${FORMAT_LABELS[toFormat as ImageFormat]} Converter - Glyph`,
+        description: `Convert your ${FORMAT_LABELS[fromFormat as ImageFormat]} images to ${FORMAT_LABELS[toFormat as ImageFormat]} format`,
+    };
 }
 
 export default async function ImageConversionPage({ params }: PageProps) {
